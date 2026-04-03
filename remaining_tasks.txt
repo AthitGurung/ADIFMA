@@ -1,0 +1,86 @@
+================================================================================
+          AD-IFMA (Active Directory Incident Forensics & Monitoring Assistant)
+                               PROJECT STATUS & ROADMAP
+================================================================================
+
+Based on the project proposal and current progress, here is the detailed breakdown 
+of what has been completed and what is left to do.
+
+--------------------------------------------------------------------------------
+[1] WHAT WE HAVE DONE (COMPLETED)
+--------------------------------------------------------------------------------
+* Project Foundation & Initialization
+  - Established project structure, dependencies, and main entry point.
+  - Selected Kanban methodology for iterative development.
+
+* Log Collection & Parsing Engine (Deliverable 1 module)
+  - Developed event extraction for Windows Security logs (Event 4624, 4625, 4720, etc.).
+  - Implemented normalization of logs into structured data.
+
+* Basic Forensic Analytics & Anomaly Detection (Deliverable 1 module)
+  - Implemented Brute Force detection (checking frequent Event 4625).
+  - Implemented Privilege Escalation detection (Admin group modifications).
+  - Implemented User Account anomaly detection (creation, deletion, password changes).
+
+* AD Simplification & Management Module
+  - Created an interface to simplify Active Directory tasks for administrators.
+  - Added capabilities to Create Users, Remove Users, Add to Groups, and Reset Passwords.
+
+* Graphical User Interface (GUI) (Deliverable 1 module)
+  - Built a desktop interface using PyQt5.
+  - Developed the Dashboard and Forensics Analysis views.
+  - Integrated the AD Management tools into the GUI.
+
+
+--------------------------------------------------------------------------------
+[2] WHAT WE HAVE LEFT TO DO (REMAINING ROADMAP)
+--------------------------------------------------------------------------------
+
+Phase A: Core Feature Completion
+----------------------------------
+[ ] Timeline Reconstruction Feature (Objective 3)
+    - Develop a dedicated visual representation (timeline) in the GUI to chronologically 
+      display a series of suspicious events, aiding in forensic incident response.
+
+[ ] Exportable Reporting System (Objective 5 & Deliverable 1 module)
+    - Implement a mechanism to generate and export Forensic Reports (in PDF or CSV format).
+    - Ensure reports capture evidence preservation standards for DFIR professionals.
+
+[ ] Data Persistence Layer (Resource Requirements)
+    - Integrate a database (SQLite or PostgreSQL) to securely store collected logs, 
+      alerts, and incident reports for long-term historical analysis and timeline reconstruction.
+
+[ ] Real-Time Monitoring & Background Processing
+    - Refactor the current manual-refresh Log Collector into a continuous, real-time 
+      background service/daemon.
+    - Guarantee scalable and adaptive processing (batch analysis/throttling) to handle 
+      high volumes of AD events without lagging.
+
+Phase B: Advanced Detection & Refinement
+----------------------------------
+[ ] Advanced Anomaly Detection (Lateral Movement / Credential Abuse)
+    - Expand detection logic to recognize "Lateral Movement" patterns.
+    - Implement detection for "Pass-the-Hash", "DCSync", or "Golden Ticket" attacks.
+    - (Optional but recommended in proposal) Integrate heuristic/behavioral baselining 
+      to detect anomalies beyond static rules.
+
+[ ] Alerting Mechanisms
+    - Implement customizable alert thresholds to prevent alert fatigue.
+    - Add notification channels (e.g., visual alerts in GUI or webhook/email notifications).
+
+Phase C: Testing & Documentation (Deliverables 2, 3 & 4)
+----------------------------------
+[ ] System & Component Testing
+    - Conduct rigorous component-level testing (Mock labs).
+    - Perform controlled attack simulations (Brute force, privilege escalation) on a 
+      Windows Server Domain Controller to generate testing report.
+
+[ ] Technical Records (Deliverable 2)
+    - Document system architecture, module definitions, and forensic detection logic.
+    - Write installation and configuration instructions.
+
+[ ] User Documentation (Deliverable 3)
+    - Create a user guide explaining tool usage, features, and forensic workflow examples.
+
+[ ] Final Report & Evaluation (Deliverable 4)
+    - Compile the finalized lab testing results and project evaluation into the final report.
