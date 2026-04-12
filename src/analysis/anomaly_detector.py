@@ -157,19 +157,34 @@ class AnomalyDetector:
 
         if changes.empty:
             return pd.DataFrame()
+            
+        # Extract user creations to prevent overlap overlaps
+        creations = self.df[self.df['EventID'] == 4720]
+        recent_creations = {}
+        for _, row in creations.iterrows():
+            data = row.get('EventData', [])
+            c_user = data[0] if len(data) > 0 else "Unknown"
+            recent_creations[c_user] = row.get('timestamp')
 
         results = []
         for index, row in changes.iterrows():
             data = row.get('EventData', [])
             # Target User is usually index 0
             target_user = data[0] if len(data) > 0 else "Unknown"
+            event_ts = row.get('timestamp')
+            
+            # Skip if password event mirrors a user creation (within 10 seconds)
+            if target_user in recent_creations and pd.notna(event_ts) and pd.notna(recent_creations[target_user]):
+                diff = abs((event_ts - recent_creations[target_user]).total_seconds())
+                if diff <= 10:
+                    continue
             
             event_type = "Password Change" if row['EventID'] == 4723 else "Password Reset"
             
             results.append({
                 'Type': event_type,
                 'EventID': row['EventID'],
-                'Time': row.get('timestamp', 'Unknown'),
+                'Time': event_ts if pd.notna(event_ts) else 'Unknown',
                 'TargetUser': target_user,
                 'FullMessage': row.get('Message', '')[:100] + "..."
             })
