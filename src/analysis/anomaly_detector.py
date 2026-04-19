@@ -19,6 +19,21 @@ class AnomalyDetector:
              # Fallback if parsing fails, might be just row index if empty
              pass
 
+    @staticmethod
+    def is_system_noise(username):
+        """
+        Returns True if the username looks like a system or machine account, 
+        or if it is empty/unknown.
+        """
+        if not username or not isinstance(username, str) or username == "Unknown" or username.strip() == "":
+            return True
+        u = username.upper()
+        if u in ["SYSTEM", "LOCAL SERVICE", "NETWORK SERVICE", "ANONYMOUS LOGON", "DWM-1", "DWM-2"]:
+            return True
+        if u.startswith("WIN-") or u.endswith("$") or u.startswith("NT AUTHORITY"):
+            return True
+        return False
+
     def detect_brute_force(self, threshold=5, window='1min', target_username_index=5):
         """
         Detects potential brute force attacks (multiple Event 4625).
@@ -58,6 +73,8 @@ class AnomalyDetector:
         # Group by user and resample
         anomalies = []
         for user, user_df in failures.groupby('TargetUser'):
+            if self.is_system_noise(user):
+                continue
             resampled = user_df.resample(window).size()
             spikes = resampled[resampled > threshold]
             if not spikes.empty:
@@ -97,6 +114,9 @@ class AnomalyDetector:
             member = data[0] if len(data) > 0 else "Unknown"
             group = data[2] if len(data) > 2 else "Unknown Group" 
             
+            if self.is_system_noise(member):
+                continue
+            
             results.append({
                 'Type': 'Privilege Escalation',
                 'EventID': row['EventID'],
@@ -131,6 +151,9 @@ class AnomalyDetector:
             created_user = data[0] if len(data) > 0 else "Unknown"
             creator = "Unknown" # Extracting creator is harder reliably without map, usually SubjectUserName
             
+            if self.is_system_noise(created_user):
+                continue
+                
             results.append({
                 'Type': 'User Creation',
                 'EventID': 4720,
@@ -173,6 +196,9 @@ class AnomalyDetector:
             target_user = data[0] if len(data) > 0 else "Unknown"
             event_ts = row.get('timestamp')
             
+            if self.is_system_noise(target_user):
+                continue
+            
             # Skip if password event mirrors a user creation (within 10 seconds)
             if target_user in recent_creations and pd.notna(event_ts) and pd.notna(recent_creations[target_user]):
                 diff = abs((event_ts - recent_creations[target_user]).total_seconds())
@@ -190,3 +216,105 @@ class AnomalyDetector:
             })
 
         return pd.DataFrame(results)
+
+    def detect_account_modifications(self):
+        """
+        Detects user account deletions (4726) and modifications (4738).
+        """
+        mod_events = [4726, 4738]
+        if self.df.empty:
+            return pd.DataFrame()
+            
+        mods = self.df[self.df['EventID'].isin(mod_events)].copy()
+        if mods.empty:
+            return pd.DataFrame()
+            
+        results = []
+        for index, row in mods.iterrows():
+            data = row.get('EventData', [])
+            target_user = data[0] if len(data) > 0 else "Unknown"
+            
+            if self.is_system_noise(target_user):
+                continue
+                
+            event_type = "User Deleted" if row['EventID'] == 4726 else "Account Modified"
+            
+            results.append({
+                'Type': event_type,
+                'EventID': row['EventID'],
+                'Time': row.get('timestamp', 'Unknown'),
+                'TargetUser': target_user,
+                'FullMessage': row.get('Message', '')[:100] + "..."
+            })
+            
+        return pd.DataFrame(results)
+
+    def detect_authentication_events(self):
+        """
+        Detects failed logins (4625) and account lockouts (4740).
+        """
+        auth_events = [4625, 4740]
+        if self.df.empty:
+            return pd.DataFrame()
+            
+        auths = self.df[self.df['EventID'].isin(auth_events)].copy()
+        if auths.empty:
+            return pd.DataFrame()
+            
+        results = []
+        for index, row in auths.iterrows():
+            data = row.get('EventData', [])
+            # TargetUserName is index 5 for 4625, index 0 for 4740
+            if row['EventID'] == 4625:
+                target_user = data[5] if len(data) > 5 else "Unknown"
+                event_type = "Failed Logon"
+            else:
+                target_user = data[0] if len(data) > 0 else "Unknown"
+                event_type = "Account Lockout"
+                
+            if self.is_system_noise(target_user):
+                continue
+                
+            results.append({
+                'Type': event_type,
+                'EventID': row['EventID'],
+                'Time': row.get('timestamp', 'Unknown'),
+                'TargetUser': target_user,
+                'FullMessage': row.get('Message', '')[:100] + "..."
+            })
+            
+        return pd.DataFrame(results)
+
+    def detect_successful_logins(self):
+        """
+        Detects successful logins (4624).
+        """
+        if self.df.empty:
+            return pd.DataFrame()
+            
+        logins = self.df[self.df['EventID'] == 4624].copy()
+        if logins.empty:
+            return pd.DataFrame()
+            
+        results = []
+        for index, row in logins.iterrows():
+            data = row.get('EventData', [])
+            # TargetUserName in 4624 is usually at index 5
+            target_user = data[5] if len(data) > 5 else "Unknown"
+            
+            if self.is_system_noise(target_user):
+                continue
+                
+            results.append({
+                'Type': 'Successful Logon',
+                'EventID': 4624,
+                'Time': row.get('timestamp', 'Unknown'),
+                'TargetUser': target_user,
+                'FullMessage': row.get('Message', '')[:100] + "..."
+            })
+            
+        final_df = pd.DataFrame(results)
+        if not final_df.empty:
+            final_df = final_df.drop_duplicates(subset=['TargetUser'])
+        return final_df
+

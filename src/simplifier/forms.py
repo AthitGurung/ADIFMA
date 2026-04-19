@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer
 from src.simplifier.ad_utils import ADUtils
+from src.gui.alert_widget import ToastNotification
 import re
 
 def validate_password(pwd):
@@ -55,7 +56,7 @@ def parse_ad_error(err, action=""):
     
     # Generic fallback
     if err.strip():
-        return err.strip().split('\n')[0] # First line of error
+        return err.strip().split('\n')[0]  # First line of error
     return "Unknown error occurred."
 
 class BaseForm(QFrame):
@@ -64,7 +65,6 @@ class BaseForm(QFrame):
     def __init__(self, title):
         super().__init__()
         
-        # Style as a card
         self.setObjectName("CardFrame")
         self.setStyleSheet("""
             #CardFrame {
@@ -96,27 +96,60 @@ class BaseForm(QFrame):
         self.status_label.hide()
         self.layout.addWidget(self.status_label)
 
-    def show_inline_message(self, success, action_name, target_user, reason=""):
+    def _fire_toast(self, action, user, status, reason=""):
+        """Show a structured popup toast for the performed action."""
+        # Determine level from status
+        level = "success" if status == "Success" else ("failed" if status == "Failed" else "warning")
+        title_str = f"{action}"
+
+        # Walk up the parent chain to find the application window
+        top = self
+        while top.parent():
+            top = top.parent()
+
+        try:
+            toast = ToastNotification(
+                parent=top,
+                title=title_str,
+                level=level,
+                action=action,
+                user=user,
+                status=status,
+                reason=reason if status != "Success" else "",
+                duration_ms=6000,
+            )
+            toast.show_toast()
+        except Exception as e:
+            print(f"Toast error: {e}")
+
+    def show_inline_message(self, success, action_name, target_user, reason="", description=""):
         if success:
             self.status_label.setStyleSheet("color: #155724; background-color: #d4edda; padding: 5px; border-radius: 3px; font-weight: bold; font-size: 12px;")
-            self.status_label.setText("Success")
+            self.status_label.setText("✅ Success")
         else:
             self.status_label.setStyleSheet("color: #721c24; background-color: #f8d7da; padding: 5px; border-radius: 3px; font-weight: bold; font-size: 12px;")
-            self.status_label.setText(f"Error: {reason}")
+            self.status_label.setText(f"❌ Error: {reason}")
             
         self.status_label.show()
-        
-        # Hide after 5 seconds
         QTimer.singleShot(5000, self.status_label.hide)
         
-        # Emit signal to dashboard
+        # Emit signal to dashboard for logging
         log_entry = {
             "user": target_user,
             "action": action_name,
             "status": "Success" if success else "Failed",
-            "reason": reason if not success else ""
+            "reason": reason if not success else "",
+            "description": description
         }
         self.action_completed.emit(log_entry)
+
+        # Fire structured toast popup
+        self._fire_toast(
+            action=action_name,
+            user=target_user,
+            status="Success" if success else "Failed",
+            reason=reason if not success else "",
+        )
 
 class AddUserForm(BaseForm):
     def __init__(self):
@@ -140,15 +173,14 @@ class AddUserForm(BaseForm):
         self.form_layout.addWidget(self.btn)
         
     def execute(self):
-        user = self.username_input.text()
+        user = self.username_input.text().strip()
         pwd = self.password_input.text()
-        desc = self.desc_input.text()
+        desc = self.desc_input.text().strip()
         
         if not user or not pwd:
-            self.show_inline_message(False, "Create User", user, "Username and Password are required.")
+            self.show_inline_message(False, "Create User", user or "(blank)", "Username and Password are required.")
             return
 
-        # Pre-validate password criteria
         pwd_error = validate_password(pwd)
         if pwd_error:
             self.show_inline_message(False, "Create User", user, pwd_error)
@@ -156,13 +188,14 @@ class AddUserForm(BaseForm):
 
         success, out, err = ADUtils.create_user(user, pwd, desc)
         if success:
-            self.show_inline_message(True, "Create User", user)
+            desc_text = f"Created user with description: {desc}" if desc else "Created new user"
+            self.show_inline_message(True, "Create User", user, description=desc_text)
             self.username_input.clear()
             self.password_input.clear()
             self.desc_input.clear()
         else:
             reason = parse_ad_error(err, "create_user")
-            self.show_inline_message(False, "Create User", user, reason)
+            self.show_inline_message(False, "Create User", user, reason, description=f"Failed to create user: {user}")
 
 class RemoveUserForm(BaseForm):
     def __init__(self):
@@ -178,19 +211,23 @@ class RemoveUserForm(BaseForm):
         self.form_layout.addWidget(self.btn)
         
     def execute(self):
-        user = self.username_input.text()
+        user = self.username_input.text().strip()
         
         if not user:
-            self.show_inline_message(False, "Remove User", user, "Username is required.")
+            # Do NOT log or toast for blank — just show inline message
+            self.status_label.setStyleSheet("color: #721c24; background-color: #f8d7da; padding: 5px; border-radius: 3px; font-weight: bold; font-size: 12px;")
+            self.status_label.setText("❌ Error: Username is required.")
+            self.status_label.show()
+            QTimer.singleShot(5000, self.status_label.hide)
             return
 
         success, out, err = ADUtils.remove_user(user)
         if success:
-            self.show_inline_message(True, "Remove User", user)
+            self.show_inline_message(True, "Remove User", user, description="Removed user from Active Directory")
             self.username_input.clear()
         else:
             reason = parse_ad_error(err, "remove_user")
-            self.show_inline_message(False, "Remove User", user, reason)
+            self.show_inline_message(False, "Remove User", user, reason, description=f"Failed to remove user: {user}")
 
 class PrivilegeForm(BaseForm):
     def __init__(self):
@@ -209,20 +246,20 @@ class PrivilegeForm(BaseForm):
         self.form_layout.addWidget(self.btn)
         
     def execute(self):
-        user = self.username_input.text()
-        group = self.group_input.text()
+        user = self.username_input.text().strip()
+        group = self.group_input.text().strip()
         
         if not user or not group:
-            self.show_inline_message(False, "Add to Group", user, "Username and Group are required.")
+            self.show_inline_message(False, "Add to Group", user or "(blank)", "Username and Group are required.")
             return
 
         success, out, err = ADUtils.add_to_group(user, group)
         if success:
-            self.show_inline_message(True, "Add to Group", user)
+            self.show_inline_message(True, "Add to Group", user, description=f"Added to group: {group}")
             self.username_input.clear()
         else:
             reason = parse_ad_error(err, "add_group")
-            self.show_inline_message(False, "Add to Group", user, reason)
+            self.show_inline_message(False, "Add to Group", user, reason, description=f"Failed to add to group: {group}")
 
 class PasswordResetForm(BaseForm):
     def __init__(self):
@@ -242,14 +279,13 @@ class PasswordResetForm(BaseForm):
         self.form_layout.addWidget(self.btn)
         
     def execute(self):
-        user = self.username_input.text()
+        user = self.username_input.text().strip()
         pwd = self.password_input.text()
         
         if not user or not pwd:
-            self.show_inline_message(False, "Reset Password", user, "Username and New Password are required.")
+            self.show_inline_message(False, "Reset Password", user or "(blank)", "Username and New Password are required.")
             return
 
-        # Pre-validate password criteria
         pwd_error = validate_password(pwd)
         if pwd_error:
             self.show_inline_message(False, "Reset Password", user, pwd_error)
@@ -257,9 +293,9 @@ class PasswordResetForm(BaseForm):
 
         success, out, err = ADUtils.reset_password(user, pwd)
         if success:
-            self.show_inline_message(True, "Reset Password", user)
+            self.show_inline_message(True, "Reset Password", user, description="Password was reset successfully")
             self.username_input.clear()
             self.password_input.clear()
         else:
             reason = parse_ad_error(err, "reset_pwd")
-            self.show_inline_message(False, "Reset Password", user, reason)
+            self.show_inline_message(False, "Reset Password", user, reason, description="Failed to reset password")

@@ -1,0 +1,923 @@
+--- PAGE 40 ---
+CS6P05NI 
+  
+ 
+ 
+ 
+       Final Year Project - Final Report     
+ 
+ 
+  
+ 
+    Page 26  
+3.3. Survey Analysis 
+3.3.1. Pre-Survey Analysis 
+The pre-survey for the project was carried out among various people from different background 
+from people with no IT background to people working in Cyber Security as their professions. 
+The survey form was majorly filled by students at Islington College and cyber security 
+professionals from Nepali Cyber Security Companies such as Vairav Tech, Cryptogen Nepal, 
+etc. These companies have been using different vendors’ SIEM and other security solutions as 
+well as their own in-house developed solutions with different features for incident response to 
+threats.  
+Most of the survey participants were familiar with all the tools and technologies mentioned in the 
+survey questions. All of them agreed that a system implementing the tools and technologies would 
+probably help better increase defence against various cyber anomalies. They suggested some of their 
+idea for the success of the project and mentioned that the system would help prevent some of the 
+incidents that they faced in recent years. And through the survey form responses, it was concluded 
+that automated incident response with integrated threat intelligence for responding to cyber threat 
+and anomalies is very important and can help organizations or even individuals protect their 
+assets from cyber threat actors. 
+The survey form questions can be found at Pre-Survey Questions, survey form sample can be 
+found at Pre-Survey Sample and the responses can be found at Pre-Survey Responses. Please 
+note that some of the survey responses were cleaned out because they contained unexpected 
+responses. 
+ 
+ 
+ 
+ 
+LMU ID
+ 
+-
+ 
+Student Name
+
+--- PAGE 41 ---
+CS6P05NI 
+  
+ 
+ 
+ 
+       Final Year Project - Final Report     
+ 
+ 
+  
+ 
+    Page 27  
+3.3.2. Post-Survey Analysis 
+The post-survey for the project was carried out among the people who were previously involved 
+in pre-survey phase of the project. However this time, people with some level of cybersecurity 
+knowledge were involved and feedback was received from 20 participants. Most of the people 
+had experience of using different vendors’ SIEM and other security solutions as well which was 
+the reason why the post-survey was carried out from them for better feedback.  
+All the participants were satisfied with the level of visibility/correlation between security events 
+provided by AIRCA. Majority of them agreed that the integration of the threat intelligence platform 
+and malware pattern analysis with Yara rules with the SIEM improved the threat detection and 
+mitigation capabilities. And through the survey form responses, it was concluded that with all the 
+integration, detection, response features for responding to cyber threat and anomalies is very 
+important and can help organizations or even individuals protect their assets from cyber threat 
+actors. 
+The survey form questions can be found at Post-Survey Questions, survey form sample can be 
+found at Post-Survey Sample and the responses can be found at Post-Survey Responses. Please 
+note that some of the survey responses were cleaned out because they contained unexpected 
+responses. 
+ 
+ 
+ 
+ 
+LMU ID
+ 
+-
+ 
+Student Name
+
+--- PAGE 42 ---
+CS6P05NI 
+  
+ 
+ 
+ 
+       Final Year Project - Final Report     
+ 
+ 
+  
+ 
+    Page 28  
+3.4. Flowchart of the System 
+ 
+Figure 11 Event monitoring and handling flow of the system 
+ 
+ 
+ 
+ 
+ 
+LMU ID
+ 
+-
+ 
+Student Name
+
+--- PAGE 43 ---
+CS6P05NI 
+  
+ 
+ 
+ 
+       Final Year Project - Final Report     
+ 
+ 
+  
+ 
+    Page 29  
+3.5. Development of the System 
+Following the completion of the flowcharts of the system, the development, or coding, phase of 
+the proposed solution proceeded. As previously stated, the proposed solution was created using 
+the DSDM (Dynamic System Development Method) software development methodology. 
+Development of the configured systems was completed during the Functional Modal / Prototype 
+Iteration sub-phase of the DSDM process. The development of any application using this 
+methodology must be carried out in distinct iterations until the result is completed within the 
+timeframe specified. This specific project was built in five different iterations which are listed as 
+follows: 
+• First Iteration - Selection of required tools and system resources. 
+• Second Iteration - Deployment of Wazuh and MISP. 
+• Third Iteration - Integration of Wazuh with MISP. 
+• Fourth Iteration - Development of detection rules and active response. 
+• Fifth Iteration - Customization of Wazuh and completion of project. 
+Each iteration produces a fully functional piece of application that has been discussed and 
+adjusted with supervisors. Moreover, the topics discussed below provides details about each 
+iteration and the main outcomes generated throughout the project. Each step of progress has been 
+clearly described, and its unique features have been thoroughly explained. 
+ 
+ 
+ 
+ 
+LMU ID
+ 
+-
+ 
+Student Name
+
+--- PAGE 44 ---
+CS6P05NI 
+  
+ 
+ 
+ 
+       Final Year Project - Final Report     
+ 
+ 
+  
+ 
+    
+  
+3.5.1. First Iteration - Selection of required tools and system resources 
+In this iteration of system development, setting up and testing all the necessary tools for building 
+the proposed solution were focused. The focus was on choosing the right tools and techniques, as 
+they play a crucial role in shaping how the project progresses and what the result will look like. 
+These tools and techniques are vital for laying a strong foundation and ensuring the success of 
+the project. 
+The primary tools that were installed and used in this iteration are as follows: 
+• Three virtual machines in VMware were deployed where the two machines were Linux, 
+and one was Windows.  
+• Required hardware resource were provided for each of the virtual machines. The 
+machines included: windows-endpoint, ubuntu-endpoint and Airca. 
+• In Airca machine, tools like docker and docker-compose were installed and tested. 
+The basic system/network diagram of the machines can be found at System & Network Diagram 
+and virtual machines resource information can be found at Machines Resource Information. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Figure
+ 
+12
+ 
+Installing docker and docker-compose
+In the above figure, docker and docker-compose were both installed using apt in Airca machine,
+this
+ 
+will be
+ 
+needed
+ 
+for later development and deployment iterations of the system.
+LMU ID
+ 
+-
+ 
+Student Name
+ 
+Page
+ 
+30
+
+--- PAGE 45 ---
+CS6P05NI 
+  
+ 
+ 
+ 
+       Final Year Project - Final Report     
+ 
+ 
+  
+ 
+    Page 31  
+ 
+Figure 13 Verifying installation of docker 
+In the above figure, docker was used to pull an image named “hello-world” and run a container 
+in Airca machine to test if docker installation was a success. 
+ 
+ 
+ 
+ 
+LMU ID
+ 
+-
+ 
+Student Name
+
+--- PAGE 46 ---
+CS6P05NI 
+  
+ 
+ 
+ 
+       Final Year Project - Final Report     
+ 
+ 
+  
+ 
+    Page 32  
+3.5.2. Second Iteration - Deployment of Wazuh and MISP 
+In this iteration of the system development, setting up and deploying Wazuh and MISP was 
+prioritized as they were the main applications used in this project. 
+The main works that were done in this iteration are as follows: 
+• Git was pre-installed like docker and docker-compose from first iteration. To install git, 
+“apt install git” can be used. 
+• Wazuh and MISP repositories were cloned from GitHub using Git clone and deployed 
+each one of them independently in this iteration. 
+• Agents were installed in the windows and ubuntu endpoint after deploying Wazuh. 
+The deployment process of Wazuh and MISP can be found in figures below. 
+ 
+Figure 14 Cloning wazuh-docker repository 
+In the above figure, git was used to clone wazuh-docker from Wazuh’s official GitHub 
+repository. The repository contained most of the default configuration files. 
+ 
+ 
+ 
+LMU ID
+ 
+-
+ 
+Student Name
+
+--- PAGE 47 ---
+CS6P05NI 
+  
+ 
+ 
+ 
+       Final Year Project - Final Report     
+ 
+ 
+  
+ 
+    Page 33  
+ 
+Figure 15 Generating certificates for Wazuh indexer, server, and dashboard 
+Docker-compose was used to generate self-signed certificate for Wazuh’s components using 
+generate-indexer-certs.yml file which was already present in default configuration file. 
+ 
+Figure 16 Starting Wazuh via docker-compose 
+Docker-compose was again used to run the containers from default docker-compose.yml file that 
+was residing in single-node directory. Note that, docker-compose up picks up docker-
+compose.yml by default to run the containers from the images in the compose file. 
+ 
+ 
+ 
+ 
+LMU ID
+ 
+-
+ 
+Student Name
+
+--- PAGE 48 ---
+CS6P05NI 
+  
+ 
+ 
+ 
+       Final Year Project - Final Report     
+ 
+ 
+  
+ 
+    Page 34  
+After the deployment of Wazuh was completed, the dashboard could be accessed from 
+“https://localhost” itself. Wazuh dashboard overview can be found at Wazuh Dashboard 
+Overview. 
+After verifying that dashboard was accessible across the network using the IP of the Airca 
+machine. Agents were installed in the endpoints who which the process for installation can be 
+found at Agent Installation Process for Endpoints. Then, Git was again used to clone the MISP 
+repository from GitHub of which the figures can be found below. 
+ 
+Figure 17 Cloning docker-misp repository 
+In the above figure, git was used to clone docker-misp from coolacid’s GitHub repository. The 
+repository contained pre-configured files that were production-ready. 
+ 
+Figure 18 Changing MISP http port to 8080 
+ 
+ 
+LMU ID
+ 
+-
+ 
+Student Name
+
+--- PAGE 49 ---
+CS6P05NI 
+  
+ 
+ 
+ 
+       Final Year Project - Final Report     
+ 
+ 
+  
+ 
+    Page 35  
+The default port for MISP were changed to 8080 for HTTP and 8443 for HTTPS respectively 
+because Wazuh was also using the default port for HTTP and HTTPS i.e. 80 and 443. This was 
+done since both Wazuh and MISP were going to be deployed in the same machine using docker. 
+ 
+Figure 19 Changing MISP https port to 8443 
+ 
+Figure 20 Starting MISP via docker-compose 
+After the deployment of MISP was completed, the dashboard could be accessed from 
+“https://localhost” itself. MISP dashboard overview can be found at MISP Dashboard Overview. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+LMU ID
+ 
+-
+ 
+Student Name
+
+--- PAGE 50 ---
+CS6P05NI 
+  
+ 
+ 
+ 
+       Final Year Project - Final Report     
+ 
+ 
+  
+ 
+    Page 36  
+3.5.3. Third Iteration - Integration of Wazuh and MISP 
+In this iteration of the system development, integration of Wazuh and MISP for threat 
+intelligence analysis correlation was done. 
+The main works that were done in this iteration are as follows: 
+• A single docker-compose file was created to deploy Wazuh and MISP with a custom 
+docker network which made communication between Wazuh and MISP possible. 
+• Integrator module was enabled in Wazuh for MISP. 
+• MISP Alerts were generated in Wazuh. 
+• Start.sh and Stop.sh script files were developed throughout third to fifth iteration of the 
+project where Start.sh automates setting up all the configurations in the containers and 
+Stop.sh just stops all the containers.  
+The single docker-compose file that was used to setup the required resources and configurations 
+to deploy necessary containers for Wazuh and MISP can be found at Docker Compose 
+Configuration. 
+ 
+Figure 21 MISP Integration rule in ossec.conf 
+In the figure above, custom-misp.py has been set in the integration field in ossec.conf which gets 
+triggered after some of the Sysmon events are generated in Wazuh. This python script then tries 
+to connect with MISP API and triggers success rule id, or if API fails to connect, it will also 
+throw a rule id for that. MISP API integration tests can be found at Test Case 4 and Test Case 5 
+whereas Sysmon events test can be found at Test Case 3. 
+Before integration with MISP was configured, Sysmon was configured in the Windows endpoint 
+with default configuration file. This process was done throughout third and fourth iteration of 
+development phase. 
+ 
+ 
+LMU ID
+ 
+-
+ 
+Student Name
+
+--- PAGE 51 ---
+CS6P05NI 
+  
+ 
+ 
+ 
+       Final Year Project - Final Report     
+ 
+ 
+  
+ 
+    Page 37  
+The installation process for Sysmon can be found at: https://www.blumira.com/enable-sysmon/ 
+and the Sysmon rulesets used can be found at Sysmon xml rule whereas the custom-misp.py can 
+be found at Custom MISP python script. 
+ 
+Figure 22 MISP Ruleset for alert generation in Wazuh 
+The ruleset xml file above in the figure handles the alert generation for each rule id that the 
+integration custom-misp.py throws as result. 
+The final Start.sh script and Stop.sh script file that was developed over the time of development 
+phase iterations can be found at Start.sh script and Stop.sh script. 
+ 
+ 
+ 
+ 
+LMU ID
+ 
+-
+ 
+Student Name
+
+--- PAGE 52 ---
+CS6P05NI 
+  
+ 
+ 
+ 
+       Final Year Project - Final Report     
+ 
+ 
+  
+ 
+    Page 38  
+Throughout the iterations, every file and folder were structured and organized which can be seen 
+in the figure below. 
+ 
+Figure 23 Folder hierarchy of the project 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+LMU ID
+ 
+-
+ 
+Student Name
+
+--- PAGE 53 ---
+CS6P05NI 
+  
+ 
+ 
+ 
+       Final Year Project - Final Report     
+ 
+ 
+  
+ 
+    Page 39  
+3.5.4. Fourth Iteration - Development of detection rules and active response 
+In this iteration of the system development, detection rules and active response was prioritized 
+and was developed parallelly with third iteration as they were the main objective of this project. 
+The main works that were done in this iteration are as follows: 
+• MISP IoC positive alert hit generation. 
+• Yara scan positive alert hit generation. 
+• Quarantine suspicious files after positive Yara hit using active response.  
+MISP API integration tests can be found at Test Case 4 and Test Case 5 whereas Sysmon events 
+test can be found at Test Case 3. The development of it can be found in the third iteration. 
+For Yara analysis, local_decoder xml file and local_rule xml file was created in Airca machine. 
+To setup the overall Yara detection for windows and ubuntu endpoint, the official documentation 
+of Wazuh was followed which can be found at: https://documentation.wazuh.com/current/proof-
+of-concept-guide/detect-malware-yara-integration.html. 
+ 
+Figure 24 Enabling Yara in ossec.conf 
+ 
+ 
+LMU ID
+ 
+-
+ 
+Student Name
+
+--- PAGE 54 ---
+CS6P05NI 
+  
+ 
+ 
+ 
+       Final Year Project - Final Report     
+ 
+ 
+  
+ 
+    Page 40  
+To enable the Yara scan and active response script for the suspicious file, rules were written in 
+ossec.conf which can be seen in the figure above. In the rule, yara_windows command runs if 
+rule id matches 100303 or 100304 in windows and for yara_linux if rule id matches 100200, 
+100201 in ubuntu. After the Yara scan completes in windows and if the file is a positive Yara 
+rule match then, the quarantine_file script runs to quarantine the file.  
+Yara analysis scan alert and file quarantine tests can be found at Test Case 8 and Test Case 9. 
+The Yara batch file for windows is at Yara scan script for windows and Yara script file for 
+ubuntu is at Yara scan script for ubuntu where as active response batch file for windows is at 
+Active response script. 
+ 
+ 
+ 
+ 
+ 
+ 
+LMU ID
+ 
+-
+ 
+Student Name
+
+--- PAGE 55 ---
+CS6P05NI 
+  
+ 
+ 
+ 
+       Final Year Project - Final Report     
+ 
+ 
+  
+ 
+    Page 41  
+3.5.5. Fifth Iteration - Customization of Wazuh and completion of project 
+In the final iteration of this project, customization of Wazuh was done where custom logos of 
+AIRCA was placed in loading screens, login page, and in other places as well. Customization of 
+dashboards was also tested but unfortunately, that wasn’t possible because all modules and 
+plugins in the dashboard configuration were interconnected with each other and since, time 
+constraints was there in the project, it was left out. 
+The customization of the dashboard can be found at Test Case 10 and customization process can 
+be found at Customized Screen Process and Overview at Customized Screen Overview.  
+ 
+   
+ 
+ 
+ 
+LMU ID
+ 
+-
+ 
+Student Name
+
+--- PAGE 56 ---
+CS6P05NI 
+  
+ 
+ 
+ 
+       Final Year Project - Final Report     
+ 
+ 
+  
+ 
+    Page 42  
+ 
+ 
+Chapter IV : Testing and Analysis 
+ 
+ 
+ 
+ 
+LMU ID
+ 
+-
+ 
+Student Name
+
+--- PAGE 57 ---
+CS6P05NI 
+  
+ 
+ 
+ 
+       Final Year Project - Final Report     
+ 
+ 
+  
+ 
+    Page 43  
+4.1. Testing 
+For validating the system’s functionality, multiple types of testing must be conducted to address 
+any faults or problems that may arise throughout the testing process. Testing is critical in system 
+development and cannot be under looked. Several test cases must be done to ensure that the 
+system is proper and reliable. As a result, several types of testing, including as unit testing, 
+system testing, and security testing have been carried out for testing the overall resilience of 
+AIRCA. 
+4.1.1. Unit Testing 
+Unit testing is a method that checks individual parts to make sure they work correctly. Its main 
+aim is to confirm that every piece of code in the software works as it should (Amazon Web 
+Services, Inc. , 2024). This system underwent twenty individual unit tests, as detailed below. 
+ 
+4.1.1.1. Test Plan 
+Test Cases 
+Objectives 
+Results 
+Case 1. 
+To test that Wazuh and MISP starts with no errors. 
+Successful 
+Case 2. 
+To test if the Wazuh UI can be changed to dark mode. 
+Successful 
+Case 3. 
+To test if new user can be added in Wazuh. 
+Successful 
+Case 4. 
+To test if newly added can login into Wazuh. 
+Successful 
+Case 5. 
+To test if admin can modify user’s role in Wazuh. 
+Successful 
+Case 6 
+To test if admin can delete users in Wazuh. 
+Successful 
+Case 7. 
+To test if new user can be added in MISP. 
+Successful 
+Case 8. 
+To test if newly added can login into MISP. 
+Successful 
+Case 9. 
+To test if admin can modify user’s role in MISP. 
+Successful 
+Case 10. 
+To test if admin can delete users in MISP. 
+Successful 
+Table 2 Test Plans for Unit Testing 
+ 
+ 
+ 
+ 
+LMU ID
+ 
+-
+ 
+Student Name
+
+--- PAGE 58 ---
+CS6P05NI 
+  
+ 
+ 
+ 
+       Final Year Project - Final Report     
+ 
+ 
+  
+ 
+    Page 44  
+4.1.1.1.1. 
+Test Case 1 
+Unit Testing 
+Objectives 
+Objective 
+To test that Wazuh and MISP starts with no errors. 
+Action 
+Start.sh script and docker-compose was executed. 
+Expected Result 
+Containers should start without any errors. 
+Actual Result 
+Containers started without any errors. 
+Conclusion 
+Test successful. 
+Table 3 Unit Testing - Test Case 1 
+Evidence 
+ 
+Figure 25 Executing start.sh script file 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Figure
+ 
+26
+ 
+Checking created docker containers of 
+the system
+LMU ID
+ 
+-
+ 
+Student Name
+
+--- PAGE 59 ---
+CS6P05NI 
+  
+ 
+ 
+ 
+       Final Year Project - Final Report     
+ 
+ 
+  
+ 
+    Page 45  
+4.1.1.1.2. 
+Test Case 2 
+Unit Testing 
+Objectives 
+Objective 
+To test if the Wazuh UI can be changed to dark mode. 
+Action 
+Toggled dark mode theme in Advanced Settings. 
+Expected Result 
+Dark mode theme should be enabled. 
+Actual Result 
+Dark mode theme was enabled. 
+Conclusion 
+Test successful. 
+Table 4 Unit Testing - Test Case 2 
+Evidence 
+ 
+Figure 27 Wazuh - Dark Mode Disabled 
+ 
+Figure 28 Wazuh - Dark Mode Enabled 
+ 
+ 
+ 
+LMU ID
+ 
+-
+ 
+Student Name
+
+--- PAGE 60 ---
+CS6P05NI 
+  
+ 
+ 
+ 
+       Final Year Project - Final Report     
+ 
+ 
+  
+ 
+    Page 46  
+4.1.1.1.3. 
+Test Case 3 
+Unit Testing 
+Objectives 
+Objective 
+To test if new user can be added in Wazuh. 
+Action 
+Added new user named analyst in Internal Users settings with readall 
+permission. 
+Expected Result 
+User analyst should be created. 
+Actual Result 
+User analyst was created successfully. 
+Conclusion 
+Test successful. 
+Table 5 Unit Testing - Test Case 3 
+Evidence 
+ 
+Figure 29 Creating user named analyst 
+ 
+ 
+ 
+ 
+LMU ID
+ 
+-
+ 
+Student Name
+
+--- PAGE 61 ---
+CS6P05NI 
+  
+ 
+ 
+ 
+       Final Year Project - Final Report     
+ 
+ 
+  
+ 
+    Page 47  
+ 
+Figure 30 User named analyst created 
+ 
+ 
+ 
+ 
+ 
+LMU ID
+ 
+-
+ 
+Student Name
+
+--- PAGE 62 ---
+CS6P05NI 
+  
+ 
+ 
+ 
+       Final Year Project - Final Report     
+ 
+ 
+  
+ 
+    Page 48  
+4.1.1.1.4. 
+Test Case 4 
+Unit Testing 
+Objectives 
+Objective 
+To test if newly added can login into Wazuh. 
+Action 
+Trying to login into Wazuh from analyst user. 
+Expected Result 
+User should be able to login. 
+Actual Result 
+User was able to login successfully. 
+Conclusion 
+Test successful. 
+Table 6 Unit Testing - Test Case 4 
+Evidence 
+ 
+Figure 31 Logged in as analyst in Wazuh 
+ 
+ 
+ 
+ 
+LMU ID
+ 
+-
+ 
+Student Name
+
+--- PAGE 63 ---
+CS6P05NI 
+  
+ 
+ 
+ 
+       Final Year Project - Final Report     
+ 
+ 
+  
+ 
+    Page 49  
+4.1.1.1.5. 
+Test Case 5 
+Unit Testing 
+Objectives 
+Objective 
+To test if admin can modify user’s role in Wazuh. 
+Action 
+Map all_read role to user analyst. 
+Expected Result 
+Role should be mapped to user analyst. 
+Actual Result 
+Role was mapped to user analyst. 
+Conclusion 
+Test successful. 
+Table 7 Unit Testing - Test Case 5 
+Evidence 
+ 
+Figure 32 Before mapping all_read role to user analyst 
+ 
+ 
+LMU ID
+ 
+-
+ 
+Student Name
+
+--- PAGE 64 ---
+CS6P05NI 
+  
+ 
+ 
+ 
+       Final Year Project - Final Report     
+ 
+ 
+  
+ 
+    Page 50  
+ 
+Figure 33 Mapping all_read role to user analyst 
+ 
+ 
+Figure 34 After mapping all_read role to user analyst 
+ 
+ 
+ 
+ 
+LMU ID
+ 
+-
+ 
+Student Name
+

@@ -70,9 +70,11 @@ class ADUtils:
     @staticmethod
     def reset_password(username, new_password):
         """Resets a user's password."""
+        # -Reset is a switch parameter — do NOT pass $true as an argument to it.
+        # Passing -Reset $true causes: "A positional parameter cannot be found that accepts argument 'True'"
         cmd = f"""
         $sec_pass = ConvertTo-SecureString '{new_password}' -AsPlainText -Force;
-        Set-ADAccountPassword -Identity '{username}' -NewPassword $sec_pass -Reset $true
+        Set-ADAccountPassword -Identity '{username}' -NewPassword $sec_pass -Reset
         """
         return ADUtils.run_ps_command(cmd)
 

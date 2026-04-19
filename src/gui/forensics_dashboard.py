@@ -1,9 +1,9 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, 
     QTableWidget, QTableWidgetItem, QGroupBox, QHeaderView, QMessageBox, QFrame, QComboBox,
-    QSystemTrayIcon, QStyle, QScrollArea, QListWidget
+    QSystemTrayIcon, QStyle, QScrollArea, QListWidget, QListWidgetItem, QDateTimeEdit, QLineEdit, QSplitter
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QDate, QDateTime
 from src.ingestion.log_collector import LogCollector
 from src.parsing.event_parser import EventParser
 from src.analysis.anomaly_detector import AnomalyDetector
@@ -13,6 +13,7 @@ from datetime import timedelta
 import pyqtgraph as pg
 from src.utils.pdf_generator import PDFGenerator
 from src.gui.pie_chart import PieChartWidget
+from src.gui.alert_widget import ToastNotification
 
 class CustomDateAxis(pg.AxisItem):
     def tickStrings(self, values, scale, spacing):
@@ -78,6 +79,9 @@ class AnalysisWorker(QThread):
         results['privilege'] = detector.detect_new_admin_creation()
         results['user_creation'] = detector.detect_user_creation()
         results['password_change'] = detector.detect_password_changes()
+        results['account_mods'] = detector.detect_account_modifications()
+        results['authentication'] = detector.detect_authentication_events()
+        results['successful_logins'] = detector.detect_successful_logins()
         
         # Aggregate for Timeline
         timeline_events = []
@@ -126,10 +130,52 @@ class AnalysisWorker(QThread):
                     'Description': 'Password Reset / Change'
                 })
 
+        # Add Account Modifications
+        if not results['account_mods'].empty:
+            for _, row in results['account_mods'].iterrows():
+                timeline_events.append({
+                    'Time': row['Time'],
+                    'Type': row['Type'],
+                    'Actor': 'System/Admin',
+                    'Target': row['TargetUser'],
+                    'Description': 'Account Modification or Deletion'
+                })
+                
+        # Add Authentication Events (Failed & Lockouts)
+        if not results['authentication'].empty:
+            for _, row in results['authentication'].iterrows():
+                timeline_events.append({
+                    'Time': row['Time'],
+                    'Type': row['Type'],
+                    'Actor': 'System/Admin',
+                    'Target': row['TargetUser'],
+                    'Description': 'Failed Logon or Account Lockout'
+                })
+                
+        # Add Successful Logins
+        if not results['successful_logins'].empty:
+            for _, row in results['successful_logins'].iterrows():
+                timeline_events.append({
+                    'Time': row['Time'],
+                    'Type': row['Type'],
+                    'Actor': 'System/Admin',
+                    'Target': row['TargetUser'],
+                    'Description': 'Successful Logon'
+                })
+
         if timeline_events:
             timeline_df = pd.DataFrame(timeline_events)
+            
+            # Filter completely invalid target references explicitly just in case anomaly_detector missed some
+            timeline_df = timeline_df.dropna(subset=['Target'])
+            timeline_df = timeline_df[timeline_df['Target'] != 'Unknown']
+            
             # Ensure sorting by time
             timeline_df['Time'] = pd.to_datetime(timeline_df['Time'])
+            
+            # Drop pure duplicates (e.g., redundant identical events in same millisecond boundary)
+            timeline_df = timeline_df.drop_duplicates(subset=['Time', 'Type', 'Target'])
+            
             timeline_df = timeline_df.sort_values(by='Time', ascending=False) # Newest first for table
             results['timeline'] = timeline_df
         else:
@@ -143,6 +189,7 @@ class ForensicsDashboard(QWidget):
         super().__init__()
         self.current_timeline_df = pd.DataFrame()
         self.current_view = "Main Dashboard (Overall Incidents)"
+        self.alert_cooldowns = {}  # key: (Type, Target), val: last toast timestamp
         self.init_ui()
 
     def init_ui(self):
@@ -219,15 +266,15 @@ class ForensicsDashboard(QWidget):
             "Main Dashboard (Overall Incidents)",
             "Security Incidents",
             "Privilege Escalation Incidents",
-            "User Account Changes",
-            "Password Changes",
-            "All Security Events"
+            "User Account Changes"
         ]
-        nav_menu.addItems(menu_items)
-        nav_menu.setCurrentRow(0)
-        nav_menu.currentTextChanged.connect(self.on_menu_changed)
-        root_layout.addWidget(nav_menu)
+        self.nav_menu = nav_menu
+        self.nav_menu.addItems(menu_items)
+        self.nav_menu.setCurrentRow(0)
+        self.nav_menu.currentTextChanged.connect(self.on_menu_changed)
+        root_layout.addWidget(self.nav_menu)
         
+        # Main scrollable content area
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
@@ -350,14 +397,55 @@ class ForensicsDashboard(QWidget):
         table_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #333;")
         table_layout.addWidget(table_title)
         
-        self.table_timeline = self.create_table(["Time", "Event Type", "Actor", "Target", "Description"])
+        # --- FILTERS ---
+        filter_layout = QHBoxLayout()
+        filter_layout.addWidget(QLabel("From:"))
+        self.dt_from = QDateTimeEdit(QDateTime.currentDateTime().addDays(-7))
+        self.dt_from.setCalendarPopup(True)
+        self.dt_from.setDisplayFormat("yyyy-MM-dd HH:mm")
+        filter_layout.addWidget(self.dt_from)
+        
+        filter_layout.addWidget(QLabel("To:"))
+        self.dt_to = QDateTimeEdit(QDateTime.currentDateTime())
+        self.dt_to.setCalendarPopup(True)
+        self.dt_to.setDisplayFormat("yyyy-MM-dd HH:mm")
+        filter_layout.addWidget(self.dt_to)
+        
+        self.search_user = QLineEdit()
+        self.search_user.setPlaceholderText("Search Username...")
+        filter_layout.addWidget(self.search_user)
+        
+        self.action_combo = QComboBox()
+        self.action_combo.addItems(["All Actions", "Brute Force Attempt", "Privilege Escalation", "User Creation", "User Deleted", "Account Modified", "Failed Logon", "Account Lockout", "Successful Logon", "Password Change", "Password Reset"])
+        filter_layout.addWidget(self.action_combo)
+        
+        self.status_combo = QComboBox()
+        self.status_combo.addItems(["All Statuses", "Success", "Failed", "Information"])
+        filter_layout.addWidget(self.status_combo)
+        
+        filter_btn = QPushButton("Apply Filters")
+        filter_btn.clicked.connect(self.update_ui_with_data)
+        filter_layout.addWidget(filter_btn)
+        
+        table_layout.addLayout(filter_layout)
+        
+        self.table_timeline = self.create_table(["Time", "Event Type", "Actor", "Target", "Status", "Description"])
         self.table_timeline.setMinimumHeight(400) # Force scroll bar by insisting on size
+        self.table_timeline.itemSelectionChanged.connect(self.on_table_row_clicked)
         table_layout.addWidget(self.table_timeline)
         
+        btn_layout = QHBoxLayout()
         self.export_btn = QPushButton("Export Forensic Report (PDF)")
         self.export_btn.setObjectName("RunBtn")
         self.export_btn.clicked.connect(self.export_pdf)
-        table_layout.addWidget(self.export_btn)
+        btn_layout.addWidget(self.export_btn)
+        
+        self.export_csv_btn = QPushButton("Export Excel (.xlsx)")
+        self.export_csv_btn.setObjectName("RunBtn")
+        self.export_csv_btn.clicked.connect(self.export_csv)
+        btn_layout.addWidget(self.export_csv_btn)
+        
+        table_layout.addLayout(btn_layout)
         
         layout.addWidget(table_group)
 
@@ -475,7 +563,53 @@ class ForensicsDashboard(QWidget):
             self.tooltip.hide()
 
     def export_pdf(self):
-        PDFGenerator.export_to_pdf(self, self.current_timeline_df)
+        df_to_export = getattr(self, 'filtered_df', self.current_timeline_df)
+        if df_to_export is None or df_to_export.empty:
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Export Error", "No data to export. Run analysis first.")
+            return
+        PDFGenerator.export_to_pdf(self, df_to_export, self.current_view)
+
+    def export_csv(self):
+        df_to_export = getattr(self, 'filtered_df', self.current_timeline_df)
+        if df_to_export is None or df_to_export.empty:
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Export Error", "No data to export. Run analysis first.")
+            return
+        PDFGenerator.export_to_csv(self, df_to_export)
+        
+    def on_table_row_clicked(self):
+        items = self.table_timeline.selectedItems()
+        if not items:
+            return
+            
+        time_item = self.table_timeline.item(items[0].row(), 0)
+        time_val = time_item.data(Qt.UserRole)
+        
+        if pd.notna(time_val):
+            ts = time_val.timestamp()
+            # Smooth pan/zoom to the timestamp with a +/- 15 min window
+            self.plot_widget.setXRange(ts - 900, ts + 900, padding=0)
+            
+            # Position crosshair directly on the event
+            self.crosshair_v.setPos(ts)
+            
+            # Show tooltip for the clicked row
+            df = self.current_timeline_df
+            if not df.empty and 'UnixTime' in df.columns:
+                nearby = df[abs(df['UnixTime'] - ts) < 1.0]
+                if not nearby.empty:
+                    row = nearby.iloc[0]
+                    self.tooltip.show()
+                    tool_text = (
+                        f"<b>Time:</b> {row['Time'].strftime('%Y-%m-%d %H:%M:%S')}<br>"
+                        f"<b>Type:</b> <span style='font-weight:bold;'>{row['Type']}</span><br>"
+                        f"<b>Target:</b> {row['Target']}<br>"
+                        f"<b>Description:</b> {row['Description']}"
+                    )
+                    self.tooltip.setHtml(tool_text)
+                    self.tooltip.setPos(ts, 1)
+
 
     def create_summary_card(self, title):
         card = QFrame()
@@ -540,14 +674,67 @@ class ForensicsDashboard(QWidget):
             if not self.current_timeline_df.empty:
                 latest_old = self.current_timeline_df['Time'].max()
                 new_events = timeline[timeline['Time'] > latest_old]
-                for _, row in new_events.iterrows():
-                    if row['Type'] in ['User Creation', 'Privilege Escalation']:
-                        self.tray_icon.showMessage(
-                            "Security Alert", 
-                            f"New {row['Type']} detected: {row['Target']}",
-                            QSystemTrayIcon.Warning,
-                            5000
-                        )
+                
+                # Setup Categories
+                crit_types = ['Failed Logon', 'Brute Force Attempt', 'Account Lockout']
+                warn_types = ['Privilege Escalation']
+                info_types = ['User Creation', 'User Deleted', 'Password Change', 'Password Reset', 'Account Modified']
+                
+                # Group repeated events for anti-spam
+                grouped_events = new_events.groupby(['Type', 'Target']).size().reset_index(name='count')
+                
+                for _, grp in grouped_events.iterrows():
+                    ev_type = grp['Type']
+                    target = grp['Target']
+                    evt_count = grp['count']
+                    
+                    # Find exact most recent record in this bundle for the UI timestamp link
+                    rep_event = new_events[(new_events['Type'] == ev_type) & (new_events['Target'] == target)].iloc[0]
+                    ts = rep_event['UnixTime']
+                    ts_str = rep_event['Time'].strftime('%H:%M:%S')
+                    desc = rep_event.get('Description', '')
+
+                    # Cooldown Check (30 seconds per Type+Target)
+                    now_ts = datetime.datetime.now().timestamp()
+                    cache_key = (ev_type, target)
+                    last_fired = self.alert_cooldowns.get(cache_key, 0)
+                    
+                    if now_ts - last_fired < 30:
+                        continue # Skip UI popup, but let it go to DB invisibly later if applicable
+                    self.alert_cooldowns[cache_key] = now_ts
+                    
+                    # Categorize
+                    if ev_type in crit_types:
+                        cat_label = "🔴 Critical"
+                        color_hex = "#dc3545"
+                        nav_dest = "Security Incidents"
+                    elif ev_type in warn_types:
+                        cat_label = "🟠 Warning"
+                        color_hex = "#fd7e14"
+                        nav_dest = "Privilege Escalation Incidents"
+                    elif ev_type in info_types:
+                        # Sometimes Info, sometimes Warning based on failure (if tracking)
+                        cat_label = "🔵 Info"
+                        color_hex = "#0078D7"
+                        nav_dest = "User Account Changes"
+                    else:
+                        cat_label = "⚪ Notice"
+                        color_hex = "#6c757d"
+                        nav_dest = "Main Dashboard (Overall Incidents)"
+                        
+                    msg_body = f"{evt_count}x '{ev_type}' events detected for '{target}'. {desc}"
+                    
+                    # 1. Floating Toast popup (Internal)
+                    if hasattr(self, 'parent') and self.parent():
+                        toast = ToastNotification(self.parent(), title=f"{cat_label}: {ev_type}", message=msg_body, color_hex=color_hex)
+                        toast.show_toast()
+                    
+                    # 2. System Tray Fallback (External)
+                    try:
+                        self.tray_icon.showMessage(cat_label, msg_body, QSystemTrayIcon.Information, 5000)
+                    except: pass
+                    
+
 
         self.current_timeline_df = timeline
         self.update_ui_with_data()
@@ -558,38 +745,91 @@ class ForensicsDashboard(QWidget):
             
         df = self.current_timeline_df.copy()
         
-        # Apply Navigation Menu Filter
-        if self.current_view == "Security Incidents":
-            df = df[df['Type'] == 'Brute Force Attempt']
+        # Apply Navigation Menu Filter & Contextual Card Titles
+        if self.current_view == "Main Dashboard (Overall Incidents)":
+            title_1, title_2, title_3, title_4 = "Total Incidents", "Privilege Escalations", "User Creations", "Failed Attempts"
+        elif self.current_view == "Security Incidents":
+            title_1, title_2, title_3, title_4 = "Failed Logins", "Brute Force Attempts", "Account Lockouts", "Suspicious Auth"
+            df = df[df['Type'].isin(['Failed Logon', 'Brute Force Attempt', 'Account Lockout', 'Malware'])]
         elif self.current_view == "Privilege Escalation Incidents":
+            title_1, title_2, title_3, title_4 = "Group Additions", "Admin Role Assignments", "Unauthorized Priv Changes", "Total Priv Incidents"
             df = df[df['Type'] == 'Privilege Escalation']
         elif self.current_view == "User Account Changes":
-            df = df[df['Type'] == 'User Creation']
-        elif self.current_view == "Password Changes":
-            df = df[df['Type'].isin(['Password Change', 'Password Reset'])]
+            title_1, title_2, title_3, title_4 = "Users Created", "Users Deleted", "Password Changes/Resets", "Account Modifications"
+            df = df[df['Type'].isin(['User Creation', 'User Deleted', 'Password Change', 'Password Reset', 'Account Modified'])]
+        else:
+            title_1, title_2, title_3, title_4 = "Total", "Privilege", "User", "Password"
             
+        self.card_bf.findChild(QLabel, "TitleLabel").setText(title_1)
+        self.card_priv.findChild(QLabel, "TitleLabel").setText(title_2)
+        self.card_create.findChild(QLabel, "TitleLabel").setText(title_3)
+        self.card_pw.findChild(QLabel, "TitleLabel").setText(title_4)
+        
+        # Apply UI Filters from Table Controls
+        from_dt = self.dt_from.dateTime().toPyDateTime()
+        to_dt = self.dt_to.dateTime().toPyDateTime()
+        df = df[(df['Time'] >= from_dt) & (df['Time'] <= to_dt)]
+        
+        s_user = self.search_user.text().lower()
+        if s_user:
+            df = df[df['Target'].astype(str).str.lower().str.contains(s_user) | df['Actor'].astype(str).str.lower().str.contains(s_user)]
+            
+        action_f = self.action_combo.currentText()
+        if action_f != "All Actions":
+            df = df[df['Type'] == action_f]
+            
+        status_f = self.status_combo.currentText()
+        if status_f != "All Statuses":
+            if status_f == "Failed":
+                df = df[df['Type'].isin(['Failed Logon', 'Brute Force Attempt', 'Account Lockout'])]
+            elif status_f == "Success":
+                df = df[df['Type'].isin(['Successful Logon'])]
+            else:
+                df = df[~df['Type'].isin(['Failed Logon', 'Brute Force Attempt', 'Account Lockout', 'Successful Logon'])]
+                
+        self.filtered_df = df.copy()
+
+        # Update Summary Card Counts
+        if self.current_view == "Main Dashboard (Overall Incidents)":
+            c1 = len(df)
+            c2 = len(df[df['Type'] == 'Privilege Escalation'])
+            c3 = len(df[df['Type'] == 'User Creation'])
+            c4 = len(df[df['Type'].isin(['Brute Force Attempt', 'Failed Logon', 'Account Lockout'])])
+        elif self.current_view == "Security Incidents":
+            c1 = len(df[df['Type'] == 'Failed Logon'])
+            c2 = len(df[df['Type'] == 'Brute Force Attempt'])
+            c3 = len(df[df['Type'] == 'Account Lockout'])
+            c4 = 0 
+        elif self.current_view == "Privilege Escalation Incidents":
+            c1 = len(df[df['Type'] == 'Privilege Escalation'])
+            c2 = 0 
+            c3 = 0 
+            c4 = len(df)
+        elif self.current_view == "User Account Changes":
+            c1 = len(df[df['Type'] == 'User Creation'])
+            c2 = len(df[df['Type'] == 'User Deleted'])
+            c3 = len(df[df['Type'].isin(['Password Change', 'Password Reset'])])
+            c4 = len(df[df['Type'] == 'Account Modified'])
+        else:
+            c1, c2, c3, c4 = 0, 0, 0, 0
+            
+        self.lbl_bf_count.setText(str(c1))
+        self.lbl_priv_count.setText(str(c2))
+        self.lbl_create_count.setText(str(c3))
+        self.lbl_pw_count.setText(str(c4))
+        
+        self.update_card_style(self.lbl_bf_count, c1)
+        self.update_card_style(self.lbl_priv_count, c2)
+        self.update_card_style(self.lbl_create_count, c3)
+        self.update_card_style(self.lbl_pw_count, c4)
+
         # 1. Update Timeline Table
-        self.populate_table(self.table_timeline, df, ['Time', 'Type', 'Actor', 'Target', 'Description'])
+        self.populate_table(self.table_timeline, df, ['Time', 'Type', 'Actor', 'Target', 'Status', 'Description'])
         self.table_timeline.setSortingEnabled(True)
         
         # 2. Update Pie Chart
         pie_data = df.groupby('Type').size().to_dict()
         self.pie_chart.update_data(pie_data)
-        
-        # 3. Update Summary Cards
-        malicious_events = df[df['Type'].isin(['Brute Force Attempt', 'Account Lockout', 'Malware'])]
-        self.lbl_bf_count.setText(str(len(malicious_events)))
-        priv_events = df[df['Type'] == 'Privilege Escalation']
-        self.lbl_priv_count.setText(str(len(priv_events)))
-        user_events = df[df['Type'] == 'User Creation']
-        self.lbl_create_count.setText(str(len(user_events)))
-        pw_events = df[df['Type'].isin(['Password Change', 'Password Reset'])]
-        self.lbl_pw_count.setText(str(len(pw_events)))
-        
-        self.update_card_style(self.lbl_bf_count, len(malicious_events))
-        self.update_card_style(self.lbl_priv_count, len(priv_events))
-        self.update_card_style(self.lbl_create_count, len(user_events))
-        self.update_card_style(self.lbl_pw_count, len(pw_events))
         
         # 4. Update Chart
         self.update_chart(df)
@@ -680,19 +920,50 @@ class ForensicsDashboard(QWidget):
                     name=event_type
                 )
 
+    def _derive_status(self, etype):
+        """Derive a human-readable status from the event type string."""
+        e = str(etype).lower()
+        if any(k in e for k in ('brute', 'failed logon', 'lockout', 'fail')):
+            return 'Failed'
+        elif any(k in e for k in ('successful', 'success')):
+            return 'Success'
+        elif any(k in e for k in ('privilege', 'escalation')):
+            return 'Warning'
+        return 'Info'
+
     def populate_table(self, table, df, columns):
-        table.setSortingEnabled(False) # Disable while populating
+        from PyQt5.QtGui import QColor, QFont
+        table.setSortingEnabled(False)
         table.setRowCount(0)
         if df.empty:
             return
-            
+
+        # Color-code rows: Green = Success, Red = Failed, Yellow = Warning/Info
+        COLOR_MAP = {
+            'success': (QColor('#d4edda'), QColor('#155724')),  # bg, fg
+            'failed':  (QColor('#f8d7da'), QColor('#721c24')),
+            'warning': (QColor('#fff3cd'), QColor('#856404')),
+            'info':    (QColor('#ffffff'), QColor('#333333')),
+        }
+
         table.setRowCount(len(df))
-        for i, row in df.iterrows():
+        for i, (_, row) in enumerate(df.iterrows()):
+            etype  = str(row.get('Type', ''))
+            status = self._derive_status(etype)
+
+            level  = status.lower() if status.lower() in COLOR_MAP else 'info'
+            bg_col, fg_col = COLOR_MAP[level]
+
             for j, col in enumerate(columns):
-                val = str(row.get(col, ""))
+                if col == 'Status':
+                    val = status
+                else:
+                    val = str(row.get(col, ''))
                 item = QTableWidgetItem(val)
-                # Keep original data for sorting if it's a number
+                item.setBackground(bg_col)
+                if col in ('Type', 'Status'):
+                    item.setForeground(fg_col)
+                    item.setFont(QFont('Segoe UI', 9, QFont.Bold))
                 if col == 'Time':
-                    # Add simple padding for string sort or keep as is
-                    item.setData(Qt.UserRole, pd.to_datetime(val))
+                    item.setData(Qt.UserRole, pd.to_datetime(val, errors='coerce'))
                 table.setItem(i, j, item)
